@@ -1,1 +1,0 @@
-{"version":3,"file":"moveEvaluator.d.ts","sourceRoot":"","sources":["../src/moveEvaluator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,WAAW,EAAE,MAAM,kBAAkB,CAAC;AAEpD,OAAO,KAAK,EAAE,aAAa,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAkBhE;;;GAGG;AACH,qBAAa,aAAa;IACxB,OAAO,CAAC,MAAM,CAAuB;IAExB,YAAY,CACvB,MAAM,EAAE,WAAW,EACnB,IAAI,EAAE,aAAa,GAClB,OAAO,CAAC,cAAc,CAAC,CAwFzB;CACF"}
