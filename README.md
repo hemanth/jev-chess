@@ -1,114 +1,109 @@
-# ♟️ Jev-Chess: Designing Chess Moves & Games with TypeSafe AI
+# jev-chess
 
-> **A Reference Architecture for AI-Powered Software in Chess using TypeSafe's System One Model (`jev-latest`)**
+Chess moves, evaluations, persona opponents, and game classification using TypeSafe AI System One models.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
-[![TypeSafe SDK](https://img.shields.io/badge/@typesafe--ai/sdk-0.6.0-orange.svg)](https://docs.typesafe.ai)
-[![Tests](https://img.shields.io/badge/tests-12%20passed-brightgreen.svg)]()
-
----
-
-## 🌟 Core Concept
-
-Traditional chess software is divided into two flawed paradigms:
-1. **Classical Engines (Stockfish):** Flawless calculation, but zero understanding of human psychology, style, natural language, or thematic concepts.
-2. **Generative LLMs (ChatGPT/Claude):** Prone to hallucinating illegal moves, confusing square coordinates, and taking 2–5 seconds with high costs.
-
-**Jev-Chess** demonstrates the **TypeSafe AI (System One)** architectural pattern:
-- **Code owns the rules and board physics** (100% legal moves via `chess.js`, bitboards, FEN, PGN, timers).
-- **TypeSafe System One (`jev-latest`) owns the semantic judgments** (fast ~100ms structured evaluations via `Choice`, `Score`, and `Noul`).
-
----
-
-## 🚀 Key Patterns Implemented
-
-| Pattern | TypeSafe Primitive | Description |
-| :--- | :--- | :--- |
-| **Move Intent Resolution** | `Choice` + Confidence | Natural language move execution (*"Push king's pawn two squares"*) mapped to verified legal moves with fallback disambiguation. |
-| **Move Character & Theme** | `Score` + `Choice` + `Noul` | Parallel atomic evaluation of tactical sharpness, strategic motifs (`pawn_break`, `prophylaxis`), and king threats. |
-| **Persona AI Opponents** | `Score` + Composite Scoring | Playing styles of **Mikhail Tal**, **Tigran Petrosian**, **Capablanca**, and **Coffeehouse Gambiteer** created via client-side weight vectors over atomic scores. |
-| **Blunder Taxonomy Review** | `Choice` + `Score` Cascade | Structured post-game diagnostics classifying blunders into actionable human archetypes (`tactical_blindness`, `over_extension`, `poisoned_pawn_greed`). |
-
----
-
-## 📦 Quick Start
-
-### 1. Install Dependencies
 ```bash
-npm install
+npm install jev-chess
 ```
 
-### 2. (Optional) Set TypeSafe API Key
-To run against the live TypeSafe cloud model (`jev-latest`), set your key:
-```bash
-export TYPESAFE_API_KEY="ts_your_api_key_here"
-```
-*Note: If no API key is provided, the engine automatically runs in **calibrated offline simulation mode**, providing realistic outputs with identical schemas.*
+## Quick start
 
-### 3. Run the Interactive Demo
-```bash
-npm run demo
-```
-
-### 4. Run the Test Suite
-```bash
-npm test
-```
-
-### 5. Build TypeScript
-```bash
-npm run build
-```
-
----
-
-## 🏗️ Code Structure
-
-```
-jev-chess/
-├── ARCHITECTURE.md          # Complete design manifesto & specification
-├── package.json
-├── tsconfig.json
-├── src/
-│   ├── index.ts             # Library exports
-│   ├── types.ts             # Domain models (moves, board, personas, evaluations)
-│   ├── chessEngine.ts       # Deterministic chess rules wrapper (chess.js)
-│   ├── typeSafeClient.ts    # TypeSafe SDK wrapper (live API + simulation fallback)
-│   ├── moveResolver.ts      # Natural language -> Legal move (Choice)
-│   ├── moveEvaluator.ts     # Multi-dimensional move assessment (Parallel System One)
-│   ├── personaEngine.ts     # Multi-persona AI via composite scoring
-│   ├── gameReviewer.ts      # Blunder diagnostics & game tension tracking
-│   ├── classicMatches.ts    # Recreate historic games & System One classification
-│   └── demo.ts              # Interactive CLI showcase
-└── tests/
-    └── chess.test.ts        # Unit & integration test suite (14 tests)
-```
-
----
-
-## 💡 Code Example: Persona Move Selection
-
-```typescript
-import { ChessEngine, PersonaEngine } from "jev-chess";
+```ts
+import { ChessEngine, MoveResolver, MoveEvaluator, PersonaEngine } from "jev-chess";
 
 const engine = new ChessEngine();
-engine.makeMove("e4");
-engine.makeMove("e5");
+const resolver = new MoveResolver();
+const evaluator = new MoveEvaluator();
+const personas = new PersonaEngine();
 
-const personaEngine = new PersonaEngine();
+// Natural language intent -> verified legal move
+const { matchedMove } = await resolver.resolveIntent(engine, "Develop knight to attack center");
+const move = engine.makeMove(matchedMove.san);
 
-// Select move as Mikhail Tal (High aggression & chaos)
-const talMove = await personaEngine.selectMove(engine, "tal");
-console.log(`Tal plays: ${talMove.selectedMove.san}`);
+// Parallel System One evaluation
+const evalResult = await evaluator.evaluateMove(engine, move);
+console.log(`${move.san}: ${evalResult.commentaryBadge} (Sharpness: ${evalResult.tacticalSharpness.score}/3.0)`);
 
-// Select move as Tigran Petrosian (High prophylaxis & safety)
-const petrosianMove = await personaEngine.selectMove(engine, "petrosian");
-console.log(`Petrosian plays: ${petrosianMove.selectedMove.san}`);
+// Opponent response via composite scoring
+const { selectedMove, rationale } = await personas.selectMove(engine, "tal");
+engine.makeMove(selectedMove.san);
+console.log(`Tal plays ${selectedMove.san}: ${rationale}`);
 ```
 
----
+`resolveIntent()` maps natural language to verified legal moves via `Choice`. `evaluateMove()` assesses sharpness, strategic themes, and king risk in parallel. `selectMove()` weighs candidates against persona archetypes. That's the whole loop.
 
-## 📖 Learn More
-- [Complete Architecture Manifesto](./ARCHITECTURE.md)
-- [TypeSafe Documentation](https://docs.typesafe.ai)
-- [System One Concepts](https://docs.typesafe.ai/concepts/system-one)
+## Natural language move intent
+
+```ts
+const { matchedMove, confidence, alternativeCandidates } = await resolver.resolveIntent(
+  engine,
+  "Castle kingside to safety"
+);
+
+if (matchedMove && confidence > 0.6) {
+  engine.makeMove(matchedMove.san);
+}
+```
+
+Resolves ambiguous instructions against verified legal moves instead of generating coordinates from scratch. If confidence falls below threshold, it returns candidate alternatives rather than hallucinating illegal squares.
+
+## Parallel move evaluation
+
+```ts
+const evaluation = await evaluator.evaluateMove(engine, move);
+
+// evaluation.tacticalSharpness -> Score (0.0 to 3.0)
+// evaluation.strategicTheme    -> Choice (pawn_break, tactical_strike, prophylaxis, etc.)
+// evaluation.kingAttackRisk    -> Noul (0.0 to 1.0 probability)
+// evaluation.commentaryBadge   -> "Sharp Tactical Clash"
+```
+
+A single `systemOne()` call evaluates candidate moves across four orthogonal dimensions simultaneously. Deterministic code synthesizes the results into human-readable commentary without asking an LLM to generate prose.
+
+## Persona AI opponents
+
+```ts
+const decision = await personas.selectMove(engine, "tal");
+// or "petrosian", "capablanca", "coffeehouse"
+```
+
+Personas are client-side weight vectors over atomic System One dimensions:
+
+- **Tal**: Heavy weight on tactical sharpness, king attack, and psychological pressure
+- **Petrosian**: Dominant prophylaxis and king safety weights
+- **Capablanca**: Prioritizes simplification and clear piece coordination
+- **Coffeehouse**: Romantic gambiteer favoring king assault and complications
+
+## Historic game classification
+
+```ts
+import { ClassicMatchStudio, CLASSIC_MATCHES } from "jev-chess";
+
+const studio = new ClassicMatchStudio();
+const report = await studio.classifyMatch(CLASSIC_MATCHES[0]);
+
+console.log(report.archetype);            // "ROMANTIC SWASHBUCKLER"
+console.log(report.aestheticBrilliance);   // { score: 2.9, level: "Immortal artistic masterpiece..." }
+console.log(report.turningPoint);         // { moveNumber: 20, san: "Ke2", ... }
+```
+
+Classifies full games into historical archetypes, detects turning points, verifies sacrifices, and generates structural tension breakdowns.
+
+## Studio & demo
+
+```bash
+npm run demo     # Interactive terminal showcase
+npm run serve    # Browser studio on http://localhost:3333
+```
+
+Interactive studio with board replay, real-time move intelligence, dynamic API key configuration, and classic match recreations.
+
+## Related
+
+- [TypeSafe AI](https://typesafe.ai) — Small units of AI intelligence as programming primitives
+- [TypeSafe SDK](https://github.com/typesafe-ai/typesafe-sdk) — Official TypeScript SDK
+- [Architecture Manifesto](./ARCHITECTURE.md) — Architectural pattern for TypeSafe chess software
+
+## License
+
+MIT © [Hemanth.HM](https://h3manth.com)
