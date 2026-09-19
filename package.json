@@ -1,0 +1,33 @@
+{
+  "name": "jev-chess",
+  "version": "1.0.0",
+  "description": "Designing Chess Moves and Games with TypeSafe AI (System One / Jev)",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "demo": "tsx src/demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "typesafe-ai",
+    "jev",
+    "chess",
+    "system-one",
+    "composite-scoring",
+    "intent-routing"
+  ],
+  "author": "Antigravity Pair Programmer",
+  "license": "MIT",
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
+    "chess.js": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
