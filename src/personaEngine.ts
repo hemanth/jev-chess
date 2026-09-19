@@ -88,7 +88,9 @@ const COMPLEXITY_RUBRIC = [
  * Pattern: Atomic Multi-Dimensional Scoring + Client-Side Persona Weights.
  */
 export class PersonaEngine {
-  private client = getTypeSafeClient();
+  private get client() {
+    return getTypeSafeClient();
+  }
 
   /**
    * Scores candidate moves and selects the top move according to the persona's style.

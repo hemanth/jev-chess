@@ -23,7 +23,9 @@ const STRATEGIC_THEMES = {
  * Pattern: Parallel Atomic Judgments + Code-Controlled Badge Synthesis.
  */
 export class MoveEvaluator {
-  private client = getTypeSafeClient();
+  private get client() {
+    return getTypeSafeClient();
+  }
 
   public async evaluateMove(
     engine: ChessEngine,

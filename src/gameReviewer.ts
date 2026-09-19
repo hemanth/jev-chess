@@ -30,7 +30,9 @@ const TENSION_RUBRIC = [
  * Pattern: Verification & Escalation / Structured Diagnostics.
  */
 export class GameReviewer {
-  private client = getTypeSafeClient();
+  private get client() {
+    return getTypeSafeClient();
+  }
 
   public async diagnoseMove(
     engine: ChessEngine,

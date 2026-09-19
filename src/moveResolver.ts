@@ -7,7 +7,9 @@ import type { AnnotatedMove, MoveIntentResult } from "./types.js";
  * Pattern: Select Instead of Generate + Confidence-Gated Ambiguity Resolution.
  */
 export class MoveResolver {
-  private client = getTypeSafeClient();
+  private get client() {
+    return getTypeSafeClient();
+  }
 
   /**
    * Resolves natural language intent (e.g. "push my e-pawn two squares", "castle kingside")

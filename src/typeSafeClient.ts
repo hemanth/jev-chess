@@ -208,6 +208,29 @@ class LiveTypeSafeClientWrapper implements ITypeSafeClient {
 
 let clientInstance: ITypeSafeClient | null = null;
 
+export function setApiKey(key: string | null | undefined): boolean {
+  if (key && key.trim().length > 0) {
+    const cleanKey = key.trim();
+    process.env["TYPESAFE_API_KEY"] = cleanKey;
+    clientInstance = new LiveTypeSafeClientWrapper(cleanKey);
+    return true;
+  } else {
+    delete process.env["TYPESAFE_API_KEY"];
+    clientInstance = new SimulatedTypeSafeClient();
+    return false;
+  }
+}
+
+export function getApiKeyStatus(): { isLive: boolean; maskedKey?: string } {
+  const current = getTypeSafeClient();
+  const key = process.env["TYPESAFE_API_KEY"];
+  if (current.isLive && key) {
+    const visible = key.length > 8 ? `${key.slice(0, 4)}...${key.slice(-4)}` : "ts_••••••••";
+    return { isLive: true, maskedKey: visible };
+  }
+  return { isLive: false };
+}
+
 export function getTypeSafeClient(): ITypeSafeClient {
   if (clientInstance) return clientInstance;
 

@@ -4,14 +4,13 @@ import { MoveResolver } from "./moveResolver.js";
 import { MoveEvaluator } from "./moveEvaluator.js";
 import { PersonaEngine, CHESS_PERSONAS } from "./personaEngine.js";
 import { GameReviewer } from "./gameReviewer.js";
-import { getTypeSafeClient } from "./typeSafeClient.js";
+import { getTypeSafeClient, setApiKey, getApiKeyStatus } from "./typeSafeClient.js";
 
 const PORT = 3333;
 const resolver = new MoveResolver();
 const evaluator = new MoveEvaluator();
 const personaEngine = new PersonaEngine();
 const reviewer = new GameReviewer();
-const client = getTypeSafeClient();
 
 function getHtml(): string {
   return `<!DOCTYPE html>
@@ -374,10 +373,61 @@ function getHtml(): string {
         <div style="font-size: 0.75rem; color: #8b949e;">TypeSafe AI System One Architecture</div>
       </div>
     </div>
-    <div id="backendBadge" class="badge-status ${client.isLive ? "" : "badge-sim"}">
-      ${client.isLive ? "🟢 jev-latest (Live API)" : "🟡 System One (Simulation Mode)"}
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <button class="btn" onclick="openKeyModal()" style="padding: 5px 12px; font-size: 0.8rem; background: #21262d; border: 1px solid var(--card-border);">
+        🔑 <span id="keyBtnLabel">API Key</span>
+      </button>
+      <div id="backendBadge" class="badge-status badge-sim" onclick="openKeyModal()" style="cursor: pointer;" title="Click to manage TypeSafe API Key">
+        🟡 System One (Simulation Mode)
+      </div>
     </div>
   </header>
+
+  <!-- TypeSafe API Key Modal -->
+  <div id="keyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); z-index: 999; align-items: center; justify-content: center;">
+    <div style="background: #161b22; border: 1px solid #30363d; border-radius: 12px; width: 480px; max-width: 92vw; padding: 24px; box-shadow: 0 20px 48px rgba(0,0,0,0.7);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="color: #f0f6fc; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
+          🔑 TypeSafe API Configuration
+        </h3>
+        <button onclick="closeKeyModal()" style="background: none; border: none; color: #8b949e; font-size: 1.2rem; cursor: pointer; padding: 4px;">✕</button>
+      </div>
+
+      <p style="font-size: 0.85rem; color: #8b949e; margin-bottom: 16px; line-height: 1.45;">
+        Connect directly to TypeSafe's flagship System One model (<strong style="color: #f0f6fc;">jev-latest</strong>). When active, all natural language move parsing, evaluations, and AI personas run directly against TypeSafe's live inference endpoints.
+      </p>
+
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #c9d1d9; margin-bottom: 6px;">
+          TypeSafe API Key
+        </label>
+        <div style="display: flex; gap: 6px;">
+          <input id="keyInput" type="password" placeholder="ts_..." style="flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; color: #f0f6fc; font-family: ui-monospace, monospace; font-size: 0.9rem; outline: none;" onkeydown="if(event.key==='Enter') saveApiKey()" />
+          <button class="btn" onclick="toggleKeyVisibility()" style="flex: 0 0 42px; padding: 0;" title="Show/Hide Key">👁️</button>
+        </div>
+      </div>
+
+      <div id="modalStatus" style="font-size: 0.82rem; margin-bottom: 16px; min-height: 20px;"></div>
+
+      <div style="display: flex; gap: 8px; flex-direction: column;">
+        <button class="btn btn-accent" onclick="saveApiKey()" style="padding: 10px; font-weight: 700;">
+          ⚡ Connect to Live jev-latest API
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="clearApiKey()" style="flex: 1;">
+            Revert to Simulation Mode
+          </button>
+          <button class="btn" onclick="closeKeyModal()" style="flex: 1;">
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; text-align: center; font-size: 0.75rem; color: #8b949e;">
+        Don't have an API key yet? Create one at <a href="https://console.typesafe.ai/" target="_blank" style="color: #58a6ff; text-decoration: underline;">console.typesafe.ai</a>
+      </div>
+    </div>
+  </div>
 
   <main>
     <!-- Left: Chessboard -->
@@ -735,9 +785,82 @@ function getHtml(): string {
       }
     }
 
+    async function checkKeyStatus() {
+      try {
+        const res = await fetch('/api/key-status');
+        const data = await res.json();
+        const badge = document.getElementById('backendBadge');
+        const btnLabel = document.getElementById('keyBtnLabel');
+        if (data.isLive) {
+          badge.className = 'badge-status';
+          badge.innerText = '🟢 jev-latest (Live API)';
+          btnLabel.innerText = data.maskedKey || 'Live Key';
+        } else {
+          badge.className = 'badge-status badge-sim';
+          badge.innerText = '🟡 System One (Simulation Mode)';
+          btnLabel.innerText = 'Set API Key';
+        }
+      } catch (e) {
+        console.error('Failed to check key status', e);
+      }
+    }
+
+    function openKeyModal() {
+      document.getElementById('keyModal').style.display = 'flex';
+      document.getElementById('modalStatus').innerText = '';
+    }
+
+    function closeKeyModal() {
+      document.getElementById('keyModal').style.display = 'none';
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById('keyInput');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    async function saveApiKey() {
+      const input = document.getElementById('keyInput');
+      const key = input.value.trim();
+      const statusEl = document.getElementById('modalStatus');
+      if (!key) {
+        statusEl.innerHTML = '<span style="color: var(--danger)">Please enter a valid API key.</span>';
+        return;
+      }
+      statusEl.innerHTML = '<span style="color: var(--accent)">Connecting to TypeSafe API...</span>';
+
+      const res = await fetch('/api/set-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key })
+      });
+      const data = await res.json();
+      if (data.success) {
+        statusEl.innerHTML = '<span style="color: var(--success)">✅ Successfully connected to live jev-latest model!</span>';
+        input.value = '';
+        await checkKeyStatus();
+        setTimeout(closeKeyModal, 1200);
+      } else {
+        statusEl.innerHTML = '<span style="color: var(--danger)">❌ ' + (data.error || 'Failed to set key') + '</span>';
+      }
+    }
+
+    async function clearApiKey() {
+      const res = await fetch('/api/set-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: '' })
+      });
+      const data = await res.json();
+      document.getElementById('modalStatus').innerHTML = '<span style="color: var(--warning)">Switched back to calibrated simulation mode.</span>';
+      await checkKeyStatus();
+      setTimeout(closeKeyModal, 900);
+    }
+
     // Initial setup
     renderBoard(currentFen);
     fetchLegalMoves();
+    checkKeyStatus();
   </script>
 </body>
 </html>`;
@@ -757,6 +880,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/key-status") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(getApiKeyStatus()));
     return;
   }
 
@@ -788,6 +917,14 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST") {
     try {
       const body = await readBody();
+
+      if (url.pathname === "/api/set-key") {
+        setApiKey(body.apiKey);
+        const status = getApiKeyStatus();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, ...status }));
+        return;
+      }
 
       if (url.pathname === "/api/legal-moves") {
         if (body.fen && body.fen !== activeEngine.fen()) {
