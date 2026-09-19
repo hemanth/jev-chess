@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "build:web": "esbuild src/web/main.ts --bundle --minify --format=iife --outfile=public/app.js",
     "test": "vitest run",
     "demo": "tsx src/demo.ts",
     "serve": "tsx src/server.ts",

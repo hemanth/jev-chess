@@ -258,14 +258,41 @@ class LiveTypeSafeClientWrapper implements ITypeSafeClient {
 
 let clientInstance: ITypeSafeClient | null = null;
 
+function getStoredApiKey(): string | null {
+  if (typeof process !== "undefined" && process?.env?.["TYPESAFE_API_KEY"]) {
+    return process.env["TYPESAFE_API_KEY"];
+  }
+  if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+    return window.localStorage.getItem("TYPESAFE_API_KEY");
+  }
+  return null;
+}
+
+function setStoredApiKey(key: string | null) {
+  if (typeof process !== "undefined" && process?.env) {
+    if (key) {
+      process.env["TYPESAFE_API_KEY"] = key;
+    } else {
+      delete process.env["TYPESAFE_API_KEY"];
+    }
+  }
+  if (typeof window !== "undefined" && typeof window.localStorage !== "undefined") {
+    if (key) {
+      window.localStorage.setItem("TYPESAFE_API_KEY", key);
+    } else {
+      window.localStorage.removeItem("TYPESAFE_API_KEY");
+    }
+  }
+}
+
 export function setApiKey(key: string | null | undefined): boolean {
   if (key && key.trim().length > 0) {
     const cleanKey = key.trim();
-    process.env["TYPESAFE_API_KEY"] = cleanKey;
+    setStoredApiKey(cleanKey);
     clientInstance = new LiveTypeSafeClientWrapper(cleanKey);
     return true;
   } else {
-    delete process.env["TYPESAFE_API_KEY"];
+    setStoredApiKey(null);
     clientInstance = new SimulatedTypeSafeClient();
     return false;
   }
@@ -273,7 +300,7 @@ export function setApiKey(key: string | null | undefined): boolean {
 
 export function getApiKeyStatus(): { isLive: boolean; maskedKey?: string } {
   const current = getTypeSafeClient();
-  const key = process.env["TYPESAFE_API_KEY"];
+  const key = getStoredApiKey();
   if (current.isLive && key) {
     const visible = key.length > 8 ? `${key.slice(0, 4)}...${key.slice(-4)}` : "ts_••••••••";
     return { isLive: true, maskedKey: visible };
@@ -284,7 +311,7 @@ export function getApiKeyStatus(): { isLive: boolean; maskedKey?: string } {
 export function getTypeSafeClient(): ITypeSafeClient {
   if (clientInstance) return clientInstance;
 
-  const key = process.env["TYPESAFE_API_KEY"];
+  const key = getStoredApiKey();
   if (key && key.trim().length > 0) {
     clientInstance = new LiveTypeSafeClientWrapper(key);
   } else {
