@@ -5,3 +5,4 @@ export * from "./moveResolver.js";
 export * from "./moveEvaluator.js";
 export * from "./personaEngine.js";
 export * from "./gameReviewer.js";
+export * from "./classicMatches.js";

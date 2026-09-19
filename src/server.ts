@@ -2,15 +2,17 @@ import http from "node:http";
 import { ChessEngine } from "./chessEngine.js";
 import { MoveResolver } from "./moveResolver.js";
 import { MoveEvaluator } from "./moveEvaluator.js";
-import { PersonaEngine, CHESS_PERSONAS } from "./personaEngine.js";
+import { PersonaEngine } from "./personaEngine.js";
 import { GameReviewer } from "./gameReviewer.js";
-import { getTypeSafeClient, setApiKey, getApiKeyStatus } from "./typeSafeClient.js";
+import { setApiKey, getApiKeyStatus } from "./typeSafeClient.js";
+import { ClassicMatchStudio, CLASSIC_MATCHES } from "./classicMatches.js";
 
 const PORT = 3333;
 const resolver = new MoveResolver();
 const evaluator = new MoveEvaluator();
 const personaEngine = new PersonaEngine();
 const reviewer = new GameReviewer();
+const matchStudio = new ClassicMatchStudio();
 
 function getHtml(): string {
   return `<!DOCTYPE html>
@@ -65,31 +67,51 @@ function getHtml(): string {
       color: var(--text-bright);
       letter-spacing: -0.02em;
     }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .status-dot.live {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(63, 185, 80, 0.7);
+    }
+    .status-dot.sim {
+      background: var(--warning);
+      box-shadow: 0 0 6px rgba(210, 153, 34, 0.5);
+    }
     .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
       font-size: 0.75rem;
-      padding: 3px 8px;
+      padding: 4px 10px;
       border-radius: 999px;
-      background: rgba(63, 185, 80, 0.15);
+      background: rgba(63, 185, 80, 0.12);
       color: var(--success);
       border: 1px solid rgba(63, 185, 80, 0.3);
       font-weight: 600;
+      cursor: pointer;
+      user-select: none;
     }
     .badge-sim {
-      background: rgba(210, 153, 34, 0.15);
+      background: rgba(210, 153, 34, 0.12);
       color: var(--warning);
       border-color: rgba(210, 153, 34, 0.3);
     }
     main {
       flex: 1;
-      max-width: 1380px;
+      max-width: 1400px;
       width: 100%;
       margin: 0 auto;
       padding: 24px;
       display: grid;
-      grid-template-columns: 520px 1fr;
+      grid-template-columns: 500px 1fr;
       gap: 28px;
     }
-    @media (max-width: 1024px) {
+    @media (max-width: 1080px) {
       main { grid-template-columns: 1fr; }
     }
     /* Chessboard Container */
@@ -102,6 +124,7 @@ function getHtml(): string {
       flex-direction: column;
       align-items: center;
       gap: 16px;
+      height: fit-content;
     }
     .board-header {
       width: 100%;
@@ -126,8 +149,8 @@ function getHtml(): string {
     .turn-dot.white { background: #fff; }
     .turn-dot.black { background: #111; }
     #board {
-      width: 480px;
-      height: 480px;
+      width: 460px;
+      height: 460px;
       display: grid;
       grid-template-columns: repeat(8, 1fr);
       grid-template-rows: repeat(8, 1fr);
@@ -142,7 +165,7 @@ function getHtml(): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 38px;
+      font-size: 36px;
       cursor: pointer;
       transition: background 0.1s;
     }
@@ -362,12 +385,147 @@ function getHtml(): string {
       padding-top: 6px;
     }
     .history-item { color: var(--text-bright); }
+
+    /* Classic Matches Styles */
+    .match-select {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid var(--card-border);
+      color: var(--text-bright);
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+      cursor: pointer;
+    }
+    .match-select:focus { border-color: var(--accent); }
+    .match-meta-box {
+      background: #0d1117;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    .match-meta-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+    .match-players {
+      font-weight: 700;
+      color: var(--text-bright);
+      font-size: 0.9rem;
+    }
+    .match-tags {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+    .match-tag {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: #21262d;
+      color: #8b949e;
+    }
+    .match-tag.result {
+      color: var(--accent);
+      background: rgba(88, 166, 255, 0.1);
+    }
+    .replay-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .replay-btn {
+      background: #21262d;
+      border: 1px solid var(--card-border);
+      color: var(--text-bright);
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .replay-btn:hover { background: #30363d; border-color: #8b949e; }
+    .replay-progress-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .replay-progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: #8b949e;
+      font-family: ui-monospace, monospace;
+    }
+    .classification-panel {
+      background: #0d1117;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .archetype-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(88, 166, 255, 0.12);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      align-self: flex-start;
+    }
+    .class-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .class-stat {
+      background: #161b22;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .class-stat-name { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; font-weight: 600; }
+    .class-stat-val { font-size: 0.95rem; font-weight: 700; color: var(--text-bright); }
+    .class-stat-desc { font-size: 0.72rem; color: #8b949e; }
+    .breakdown-row {
+      display: flex;
+      gap: 6px;
+      font-size: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .breakdown-pill {
+      background: #161b22;
+      border: 1px solid var(--card-border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: var(--text);
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="brand">
-      <span style="font-size: 1.5rem">♟️</span>
       <div>
         <h1>Jev Chess Studio</h1>
         <div style="font-size: 0.75rem; color: #8b949e;">TypeSafe AI System One Architecture</div>
@@ -375,10 +533,11 @@ function getHtml(): string {
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
       <button class="btn" onclick="openKeyModal()" style="padding: 5px 12px; font-size: 0.8rem; background: #21262d; border: 1px solid var(--card-border);">
-        🔑 <span id="keyBtnLabel">API Key</span>
+        <span id="keyBtnLabel">API Key</span>
       </button>
-      <div id="backendBadge" class="badge-status badge-sim" onclick="openKeyModal()" style="cursor: pointer;" title="Click to manage TypeSafe API Key">
-        🟡 System One (Simulation Mode)
+      <div id="backendBadge" class="badge-status badge-sim" onclick="openKeyModal()" title="Click to manage TypeSafe API Key">
+        <span id="backendStatusDot" class="status-dot sim"></span>
+        <span id="backendStatusText">Simulation Mode (jev-latest calibrated)</span>
       </div>
     </div>
   </header>
@@ -387,8 +546,8 @@ function getHtml(): string {
   <div id="keyModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); z-index: 999; align-items: center; justify-content: center;">
     <div style="background: #161b22; border: 1px solid #30363d; border-radius: 12px; width: 480px; max-width: 92vw; padding: 24px; box-shadow: 0 20px 48px rgba(0,0,0,0.7);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h3 style="color: #f0f6fc; font-size: 1.15rem; display: flex; align-items: center; gap: 8px;">
-          🔑 TypeSafe API Configuration
+        <h3 style="color: #f0f6fc; font-size: 1.15rem; font-weight: 700;">
+          TypeSafe API Configuration
         </h3>
         <button onclick="closeKeyModal()" style="background: none; border: none; color: #8b949e; font-size: 1.2rem; cursor: pointer; padding: 4px;">✕</button>
       </div>
@@ -403,7 +562,7 @@ function getHtml(): string {
         </label>
         <div style="display: flex; gap: 6px;">
           <input id="keyInput" type="password" placeholder="ts_..." style="flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; color: #f0f6fc; font-family: ui-monospace, monospace; font-size: 0.9rem; outline: none;" onkeydown="if(event.key==='Enter') saveApiKey()" />
-          <button class="btn" onclick="toggleKeyVisibility()" style="flex: 0 0 42px; padding: 0;" title="Show/Hide Key">👁️</button>
+          <button class="btn" onclick="toggleKeyVisibility()" style="flex: 0 0 60px; padding: 0;" title="Toggle Visibility">Show</button>
         </div>
       </div>
 
@@ -411,7 +570,7 @@ function getHtml(): string {
 
       <div style="display: flex; gap: 8px; flex-direction: column;">
         <button class="btn btn-accent" onclick="saveApiKey()" style="padding: 10px; font-weight: 700;">
-          ⚡ Connect to Live jev-latest API
+          Connect to Live API (jev-latest)
         </button>
         <div style="display: flex; gap: 8px;">
           <button class="btn" onclick="clearApiKey()" style="flex: 1;">
@@ -424,7 +583,7 @@ function getHtml(): string {
       </div>
 
       <div style="margin-top: 16px; text-align: center; font-size: 0.75rem; color: #8b949e;">
-        Don't have an API key yet? Create one at <a href="https://console.typesafe.ai/" target="_blank" style="color: #58a6ff; text-decoration: underline;">console.typesafe.ai</a>
+        Obtain an API key at <a href="https://console.typesafe.ai/" target="_blank" style="color: #58a6ff; text-decoration: underline;">console.typesafe.ai</a>
       </div>
     </div>
   </div>
@@ -443,13 +602,13 @@ function getHtml(): string {
       <div id="board"></div>
 
       <div class="board-actions">
-        <button class="btn" onclick="resetGame()">↺ Reset Game</button>
-        <button class="btn" onclick="undoMove()">↶ Undo</button>
-        <button class="btn btn-primary" onclick="makePersonaMove()">⚡ Ask Opponent Move</button>
+        <button class="btn" onclick="resetGame()">Reset Game</button>
+        <button class="btn" onclick="undoMove()">Undo</button>
+        <button class="btn btn-primary" onclick="makePersonaMove()">Ask Opponent Move</button>
       </div>
 
       <div style="width: 100%;">
-        <div style="font-size: 0.75rem; color: #8b949e; margin-bottom: 4px;">Recent Moves</div>
+        <div style="font-size: 0.75rem; color: #8b949e; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Move History</div>
         <div id="historyList" class="history-list"></div>
       </div>
     </div>
@@ -459,7 +618,7 @@ function getHtml(): string {
       <!-- Natural Language Move Resolver -->
       <div class="panel">
         <div class="panel-title">
-          <span>🗣️ Natural Language Move Intent</span>
+          <span>Natural Language Move Intent</span>
           <span class="panel-subtitle">Select Instead of Generate (Choice)</span>
         </div>
         <div class="nl-input-row">
@@ -482,8 +641,8 @@ function getHtml(): string {
       <!-- Live Move Intelligence -->
       <div class="panel">
         <div class="panel-title">
-          <span>🧠 System One Move Intelligence</span>
-          <span id="lastMoveBadge" style="font-size: 0.8rem; padding: 2px 8px; border-radius: 4px; background: #21262d; color: #fff;">Waiting for move...</span>
+          <span>System One Move Intelligence</span>
+          <span id="lastMoveBadge" style="font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 4px; background: #21262d; color: var(--text-bright); border: 1px solid var(--card-border);">Waiting for move...</span>
         </div>
         <div class="metrics-grid">
           <div class="metric-card">
@@ -518,8 +677,8 @@ function getHtml(): string {
       <!-- Persona AI Opponent -->
       <div class="panel">
         <div class="panel-title">
-          <span>👤 Persona AI Opponent</span>
-          <span class="panel-subtitle">Composite Scoring: w · Dimensions</span>
+          <span>Persona AI Opponent</span>
+          <span class="panel-subtitle">Composite Scoring: weights · dimensions</span>
         </div>
         <div class="persona-select-grid">
           <div class="persona-card active" onclick="selectPersona('tal', this)">
@@ -543,6 +702,93 @@ function getHtml(): string {
           Select an opponent archetype and click "Ask Opponent Move" to watch TypeSafe score candidate moves across atomic dimensions.
         </div>
       </div>
+
+      <!-- Classic Matches & Game Classification -->
+      <div class="panel">
+        <div class="panel-title">
+          <span>Classic Matches & Replay Studio</span>
+          <span class="panel-subtitle">Historic Games & System One Classification</span>
+        </div>
+
+        <select id="matchSelect" class="match-select" onchange="onMatchSelectChange(this.value)">
+          <option value="">Loading classic games...</option>
+        </select>
+
+        <div id="matchMetaBox" class="match-meta-box" style="display: none;">
+          <div class="match-meta-header">
+            <span id="matchPlayers" class="match-players"></span>
+            <span id="matchYearEvent" style="color: #8b949e; font-size: 0.75rem;"></span>
+          </div>
+          <div id="matchDesc" style="color: var(--text); margin-top: 4px;"></div>
+          <div class="match-tags">
+            <span id="matchEco" class="match-tag"></span>
+            <span id="matchOpening" class="match-tag"></span>
+            <span id="matchResult" class="match-tag result"></span>
+          </div>
+        </div>
+
+        <!-- Replay Toolbar -->
+        <div class="replay-bar">
+          <button class="replay-btn" onclick="stepFirst()" title="First Position">|&lt;</button>
+          <button class="replay-btn" onclick="stepPrev()" title="Previous Move">&lt;</button>
+          <button class="replay-btn" onclick="stepNext()" title="Next Move">&gt;</button>
+          <button class="replay-btn" onclick="stepLast()" title="Final Position">&gt;|</button>
+          <button id="autoPlayBtn" class="replay-btn" onclick="toggleAutoPlay()">Auto Play</button>
+          <button class="replay-btn" onclick="jumpToTurningPoint()" style="color: var(--accent);">Turning Point</button>
+        </div>
+
+        <div class="replay-progress-wrap" style="margin-top: 10px;">
+          <div class="replay-progress-text">
+            <span id="replayMoveLabel">Move 0 / 0</span>
+            <span id="replayTurnLabel">Initial Position</span>
+          </div>
+          <div class="progress-bar"><div id="replayProgressBar" class="progress-fill" style="width: 0%;"></div></div>
+        </div>
+
+        <!-- Classify Button -->
+        <div style="margin-top: 14px;">
+          <button id="classifyBtn" class="btn btn-accent" style="width: 100%;" onclick="classifyCurrentMatch()">
+            Classify Match with System One
+          </button>
+        </div>
+
+        <!-- Classification Results Card -->
+        <div id="classificationCard" class="classification-panel" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div id="classArchetype" class="archetype-banner">ARCHETYPE</div>
+            <span id="classSacrifice" style="font-size: 0.75rem; color: #8b949e;"></span>
+          </div>
+
+          <div class="class-grid">
+            <div class="class-stat">
+              <span class="class-stat-name">Brilliance</span>
+              <span id="classBrillianceScore" class="class-stat-val">--</span>
+              <span id="classBrillianceLevel" class="class-stat-desc">--</span>
+            </div>
+            <div class="class-stat">
+              <span class="class-stat-name">Sharpness</span>
+              <span id="classSharpnessScore" class="class-stat-val">--</span>
+              <span id="classSharpnessLevel" class="class-stat-desc">--</span>
+            </div>
+            <div class="class-stat">
+              <span class="class-stat-name">Turning Point</span>
+              <span id="classTurningMove" class="class-stat-val" style="color: var(--accent);">--</span>
+              <span id="classTurningNum" class="class-stat-desc">Move --</span>
+            </div>
+          </div>
+
+          <div style="font-size: 0.75rem; color: #8b949e; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Strategic Profile</div>
+          <div class="breakdown-row">
+            <div class="breakdown-pill">Tactical: <strong id="bdTactical" style="color: var(--text-bright);">0%</strong></div>
+            <div class="breakdown-pill">Pawns: <strong id="bdPawn" style="color: var(--text-bright);">0%</strong></div>
+            <div class="breakdown-pill">Piece Play: <strong id="bdPiece" style="color: var(--text-bright);">0%</strong></div>
+            <div class="breakdown-pill">Prophylaxis: <strong id="bdProphyl" style="color: var(--text-bright);">0%</strong></div>
+          </div>
+
+          <div id="classVerdict" style="background: #161b22; border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px; font-size: 0.8rem; color: var(--text); line-height: 1.5;">
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -559,12 +805,17 @@ function getHtml(): string {
     let lastFrom = null;
     let lastTo = null;
 
+    // Classic match state
+    let classicMatches = [];
+    let activeMatch = null;
+    let matchMoveIndex = 0;
+    let autoPlayTimer = null;
+
     function renderBoard(fen) {
       const boardEl = document.getElementById('board');
       boardEl.innerHTML = '';
       const [placement, turn] = fen.split(' ');
 
-      // Update turn indicator
       const turnDot = document.getElementById('turnDot');
       const turnLabel = document.getElementById('turnLabel');
       if (turn === 'w') {
@@ -606,7 +857,6 @@ function getHtml(): string {
       if (sqName === lastFrom) div.classList.add('last-from');
       if (sqName === lastTo) div.classList.add('last-to');
 
-      // Check if target for selected piece
       if (selectedSquare) {
         const canMove = legalMoves.some(m => m.from === selectedSquare && m.to === sqName);
         if (canMove) div.classList.add('target');
@@ -649,7 +899,7 @@ function getHtml(): string {
 
     function updateHistory(history) {
       const el = document.getElementById('historyList');
-      if (history.length === 0) {
+      if (!history || history.length === 0) {
         el.innerHTML = '<span style="color: #666;">No moves played yet</span>';
         return;
       }
@@ -666,7 +916,6 @@ function getHtml(): string {
           return;
         }
       }
-      // Select new piece
       const hasMoves = legalMoves.some(m => m.from === sq);
       selectedSquare = hasMoves ? sq : null;
       renderBoard(currentFen);
@@ -689,17 +938,34 @@ function getHtml(): string {
       }
     }
 
+    function formatTheme(theme) {
+      if (!theme) return '--';
+      return theme.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
     function updateIntelligence(ev) {
       if (!ev) return;
-      document.getElementById('lastMoveBadge').innerText = ev.commentaryBadge;
+      document.getElementById('lastMoveBadge').innerText = ev.commentaryBadge || 'Move Evaluated';
       document.getElementById('mSharp').innerText = ev.tacticalSharpness.score.toFixed(1);
       document.getElementById('mSharpBar').style.width = Math.min(100, (ev.tacticalSharpness.score / 3.0) * 100) + '%';
-      document.getElementById('mTheme').innerText = ev.strategicTheme.theme;
+      document.getElementById('mTheme').innerText = formatTheme(ev.strategicTheme.theme);
       document.getElementById('mThemeConf').innerText = 'Confidence: ' + (ev.strategicTheme.confidence * 100).toFixed(0) + '%';
       document.getElementById('mKing').innerText = (ev.kingAttackRisk.probability * 100).toFixed(0) + '%';
       document.getElementById('mKingBar').style.width = (ev.kingAttackRisk.probability * 100) + '%';
       document.getElementById('mPressure').innerText = (ev.psychologicalPressure.probability * 100).toFixed(0) + '%';
       document.getElementById('mPressureBar').style.width = (ev.psychologicalPressure.probability * 100) + '%';
+    }
+
+    function resetIntelligence() {
+      document.getElementById('lastMoveBadge').innerText = 'Waiting for move...';
+      document.getElementById('mSharp').innerText = '--';
+      document.getElementById('mSharpBar').style.width = '0%';
+      document.getElementById('mTheme').innerText = '--';
+      document.getElementById('mThemeConf').innerText = 'Confidence: --';
+      document.getElementById('mKing').innerText = '--';
+      document.getElementById('mKingBar').style.width = '0%';
+      document.getElementById('mPressure').innerText = '--';
+      document.getElementById('mPressureBar').style.width = '0%';
     }
 
     async function resolveAndPlayMove() {
@@ -722,12 +988,12 @@ function getHtml(): string {
       const data = await res.json();
 
       if (data.matchedMove) {
-        resText.innerText = '✅ Matched: ' + data.matchedMove.san + ' (' + data.matchedMove.description + ')';
+        resText.innerText = 'Matched: ' + data.matchedMove.san + ' (' + data.matchedMove.description + ')';
         resConf.innerText = (data.confidence * 100).toFixed(1) + '% confidence';
         input.value = '';
         await playMove(data.matchedMove.san);
       } else {
-        resText.innerText = '⚠️ Ambiguous: ' + (data.alternativeCandidates?.join(', ') || 'No legal match');
+        resText.innerText = 'Ambiguous: ' + (data.alternativeCandidates?.join(', ') || 'No legal match');
         resConf.innerText = 'Low confidence (' + (data.confidence * 100).toFixed(1) + '%)';
       }
     }
@@ -762,6 +1028,7 @@ function getHtml(): string {
     }
 
     async function resetGame() {
+      stopAutoPlay();
       currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
       lastFrom = null;
       lastTo = null;
@@ -769,9 +1036,11 @@ function getHtml(): string {
       document.getElementById('resolutionResult').style.display = 'none';
       renderBoard(currentFen);
       await fetchLegalMoves();
+      resetIntelligence();
     }
 
     async function undoMove() {
+      stopAutoPlay();
       const res = await fetch('/api/undo-move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -785,20 +1054,207 @@ function getHtml(): string {
       }
     }
 
+    /* Classic Matches Functions */
+    async function initClassicMatches() {
+      try {
+        const res = await fetch('/api/classic-matches');
+        classicMatches = await res.json();
+        const select = document.getElementById('matchSelect');
+        select.innerHTML = classicMatches.map(m =>
+          '<option value="' + m.id + '">' + m.title + ' (' + m.year + ') — ' + m.white + ' vs ' + m.black + '</option>'
+        ).join('');
+
+        if (classicMatches.length > 0) {
+          selectMatch(classicMatches[0].id);
+        }
+      } catch (e) {
+        console.error('Failed to load classic matches', e);
+      }
+    }
+
+    function onMatchSelectChange(matchId) {
+      if (matchId) selectMatch(matchId);
+    }
+
+    async function selectMatch(matchId) {
+      stopAutoPlay();
+      activeMatch = classicMatches.find(m => m.id === matchId);
+      if (!activeMatch) return;
+
+      // Update meta UI
+      const metaBox = document.getElementById('matchMetaBox');
+      metaBox.style.display = 'block';
+      document.getElementById('matchPlayers').innerText = activeMatch.white + ' vs ' + activeMatch.black;
+      document.getElementById('matchYearEvent').innerText = activeMatch.year + ' · ' + activeMatch.event;
+      document.getElementById('matchDesc').innerText = activeMatch.description;
+      document.getElementById('matchEco').innerText = activeMatch.eco;
+      document.getElementById('matchOpening').innerText = activeMatch.opening;
+      document.getElementById('matchResult').innerText = activeMatch.result;
+
+      // Reset replay state to move 0
+      await goToReplayMove(0);
+      document.getElementById('classificationCard').style.display = 'none';
+    }
+
+    async function goToReplayMove(index) {
+      if (!activeMatch) return;
+      const target = Math.max(0, Math.min(activeMatch.moves.length, index));
+      matchMoveIndex = target;
+
+      // Update progress indicators
+      document.getElementById('replayMoveLabel').innerText = 'Move ' + matchMoveIndex + ' / ' + activeMatch.moves.length;
+      const pct = (matchMoveIndex / Math.max(1, activeMatch.moves.length)) * 100;
+      document.getElementById('replayProgressBar').style.width = pct + '%';
+
+      if (matchMoveIndex === 0) {
+        document.getElementById('replayTurnLabel').innerText = 'Starting Position';
+      } else {
+        const lastSan = activeMatch.moves[matchMoveIndex - 1];
+        const moveNum = Math.floor((matchMoveIndex - 1) / 2) + 1;
+        const color = (matchMoveIndex - 1) % 2 === 0 ? 'White' : 'Black';
+        document.getElementById('replayTurnLabel').innerText = moveNum + (color === 'White' ? '. ' : '... ') + lastSan;
+      }
+
+      const res = await fetch('/api/replay-to-move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: activeMatch.id, moveIndex: matchMoveIndex })
+      });
+      const data = await res.json();
+
+      currentFen = data.fen;
+      if (data.move) {
+        lastFrom = data.move.from;
+        lastTo = data.move.to;
+      } else {
+        lastFrom = null;
+        lastTo = null;
+      }
+
+      legalMoves = data.moves || [];
+      document.getElementById('materialBalance').innerText = data.material || 'Equal';
+      updateHistory(data.history || []);
+      renderBoard(currentFen);
+
+      if (data.evaluation) {
+        updateIntelligence(data.evaluation);
+      } else {
+        resetIntelligence();
+      }
+    }
+
+    function stepFirst() {
+      stopAutoPlay();
+      goToReplayMove(0);
+    }
+
+    function stepPrev() {
+      stopAutoPlay();
+      if (matchMoveIndex > 0) goToReplayMove(matchMoveIndex - 1);
+    }
+
+    function stepNext() {
+      if (activeMatch && matchMoveIndex < activeMatch.moves.length) {
+        goToReplayMove(matchMoveIndex + 1);
+      }
+    }
+
+    function stepLast() {
+      stopAutoPlay();
+      if (activeMatch) goToReplayMove(activeMatch.moves.length);
+    }
+
+    function jumpToTurningPoint() {
+      stopAutoPlay();
+      if (activeMatch) goToReplayMove(activeMatch.keyMoveIndex);
+    }
+
+    function toggleAutoPlay() {
+      if (autoPlayTimer) {
+        stopAutoPlay();
+      } else {
+        if (!activeMatch) return;
+        if (matchMoveIndex >= activeMatch.moves.length) {
+          goToReplayMove(0);
+        }
+        document.getElementById('autoPlayBtn').innerText = 'Pause';
+        autoPlayTimer = setInterval(() => {
+          if (activeMatch && matchMoveIndex < activeMatch.moves.length) {
+            stepNext();
+          } else {
+            stopAutoPlay();
+          }
+        }, 1200);
+      }
+    }
+
+    function stopAutoPlay() {
+      if (autoPlayTimer) {
+        clearInterval(autoPlayTimer);
+        autoPlayTimer = null;
+        const btn = document.getElementById('autoPlayBtn');
+        if (btn) btn.innerText = 'Auto Play';
+      }
+    }
+
+    async function classifyCurrentMatch() {
+      if (!activeMatch) return;
+      const btn = document.getElementById('classifyBtn');
+      btn.innerText = 'Classifying with System One...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/classify-match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: activeMatch.id })
+        });
+        const cl = await res.json();
+
+        document.getElementById('classificationCard').style.display = 'flex';
+        document.getElementById('classArchetype').innerText = cl.archetype;
+        document.getElementById('classSacrifice').innerText = cl.hasDecisiveSacrifice ? 'Decisive Sacrifice Confirmed' : 'No Decisive Sacrifice';
+        document.getElementById('classBrillianceScore').innerText = cl.aestheticBrilliance.score.toFixed(1) + ' / 3.0';
+        document.getElementById('classBrillianceLevel').innerText = cl.aestheticBrilliance.level;
+        document.getElementById('classSharpnessScore').innerText = cl.overallSharpness.score.toFixed(1) + ' / 3.0';
+        document.getElementById('classSharpnessLevel').innerText = cl.overallSharpness.level;
+        document.getElementById('classTurningMove').innerText = cl.turningPoint.san;
+        document.getElementById('classTurningNum').innerText = 'Move ' + cl.turningPoint.moveNumber;
+
+        document.getElementById('bdTactical').innerText = cl.strategicBreakdown.tacticalStrikesPct + '%';
+        document.getElementById('bdPawn').innerText = cl.strategicBreakdown.pawnBreaksPct + '%';
+        document.getElementById('bdPiece').innerText = cl.strategicBreakdown.pieceActivationPct + '%';
+        document.getElementById('bdProphyl').innerText = cl.strategicBreakdown.prophylaxisPct + '%';
+
+        document.getElementById('classVerdict').innerText = cl.verdict;
+      } catch (e) {
+        console.error('Failed to classify match', e);
+      } finally {
+        btn.innerText = 'Classify Match with System One';
+        btn.disabled = false;
+      }
+    }
+
+    /* API Key Configuration Functions */
     async function checkKeyStatus() {
       try {
         const res = await fetch('/api/key-status');
         const data = await res.json();
         const badge = document.getElementById('backendBadge');
+        const dot = document.getElementById('backendStatusDot');
+        const text = document.getElementById('backendStatusText');
         const btnLabel = document.getElementById('keyBtnLabel');
+
         if (data.isLive) {
           badge.className = 'badge-status';
-          badge.innerText = '🟢 jev-latest (Live API)';
+          dot.className = 'status-dot live';
+          text.innerText = 'Live API (jev-latest)';
           btnLabel.innerText = data.maskedKey || 'Live Key';
         } else {
           badge.className = 'badge-status badge-sim';
-          badge.innerText = '🟡 System One (Simulation Mode)';
-          btnLabel.innerText = 'Set API Key';
+          dot.className = 'status-dot sim';
+          text.innerText = 'Simulation Mode (jev-latest calibrated)';
+          btnLabel.innerText = 'API Key';
         }
       } catch (e) {
         console.error('Failed to check key status', e);
@@ -816,7 +1272,9 @@ function getHtml(): string {
 
     function toggleKeyVisibility() {
       const input = document.getElementById('keyInput');
-      input.type = input.type === 'password' ? 'text' : 'password';
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      event.target.innerText = isPass ? 'Hide' : 'Show';
     }
 
     async function saveApiKey() {
@@ -836,12 +1294,12 @@ function getHtml(): string {
       });
       const data = await res.json();
       if (data.success) {
-        statusEl.innerHTML = '<span style="color: var(--success)">✅ Successfully connected to live jev-latest model!</span>';
+        statusEl.innerHTML = '<span style="color: var(--success)">Successfully connected to live jev-latest model.</span>';
         input.value = '';
         await checkKeyStatus();
         setTimeout(closeKeyModal, 1200);
       } else {
-        statusEl.innerHTML = '<span style="color: var(--danger)">❌ ' + (data.error || 'Failed to set key') + '</span>';
+        statusEl.innerHTML = '<span style="color: var(--danger)">' + (data.error || 'Failed to set key') + '</span>';
       }
     }
 
@@ -851,7 +1309,7 @@ function getHtml(): string {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey: '' })
       });
-      const data = await res.json();
+      await res.json();
       document.getElementById('modalStatus').innerHTML = '<span style="color: var(--warning)">Switched back to calibrated simulation mode.</span>';
       await checkKeyStatus();
       setTimeout(closeKeyModal, 900);
@@ -861,6 +1319,7 @@ function getHtml(): string {
     renderBoard(currentFen);
     fetchLegalMoves();
     checkKeyStatus();
+    initClassicMatches();
   </script>
 </body>
 </html>`;
@@ -886,6 +1345,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/api/key-status") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(getApiKeyStatus()));
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/classic-matches") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(CLASSIC_MATCHES));
     return;
   }
 
@@ -923,6 +1388,55 @@ const server = http.createServer(async (req, res) => {
         const status = getApiKeyStatus();
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, ...status }));
+        return;
+      }
+
+      if (url.pathname === "/api/classify-match") {
+        const match = CLASSIC_MATCHES.find((m) => m.id === body.matchId);
+        if (!match) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Match not found" }));
+          return;
+        }
+        const classification = await matchStudio.classifyMatch(match);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(classification));
+        return;
+      }
+
+      if (url.pathname === "/api/replay-to-move") {
+        const match = CLASSIC_MATCHES.find((m) => m.id === body.matchId);
+        if (!match) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Match not found" }));
+          return;
+        }
+        activeEngine.reset();
+        let lastEvaluatedMove: any = null;
+        const target = Math.max(0, Math.min(match.moves.length, Number(body.moveIndex) || 0));
+        for (let i = 0; i < target; i++) {
+          const mv = activeEngine.makeMove(match.moves[i]!);
+          if (i === target - 1) {
+            lastEvaluatedMove = mv;
+          }
+        }
+        let evaluation = null;
+        if (lastEvaluatedMove) {
+          evaluation = await evaluator.evaluateMove(activeEngine, lastEvaluatedMove);
+        }
+        const moves = activeEngine.getAnnotatedMoves();
+        const mat = activeEngine.getMaterialBalance();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            fen: activeEngine.fen(),
+            move: lastEvaluatedMove,
+            evaluation,
+            material: mat.description,
+            history: activeEngine.history(),
+            moves,
+          })
+        );
         return;
       }
 
@@ -991,5 +1505,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`♟️ Jev Chess Web Studio running live at http://localhost:${PORT}`);
+  console.log(`Jev Chess Web Studio running live at http://localhost:${PORT}`);
 });

@@ -81,22 +81,22 @@ export class MoveEvaluator {
       SHARPNESS_RUBRIC[Math.min(SHARPNESS_RUBRIC.length - 1, Math.round(sharpnessScore))] ??
       "Standard move";
 
-    // Determine commentary badge in deterministic code
+    // Determine commentary badge in deterministic code (clean, professional text)
     let commentaryBadge = "Standard Move";
     if (sharpnessScore >= 2.2) {
-      commentaryBadge = "🔥 Sharp Tactical Clash";
+      commentaryBadge = "Sharp Tactical Clash";
     } else if (kingAnswer.noul >= 0.7) {
-      commentaryBadge = "👑 King Assault Initiated";
+      commentaryBadge = "King Assault Initiated";
     } else if (themeAnswer.choice === "prophylaxis") {
-      commentaryBadge = "🛡️ Prophylactic Squeeze";
+      commentaryBadge = "Prophylactic Squeeze";
     } else if (themeAnswer.choice === "pawn_break") {
-      commentaryBadge = "⚡ Central Pawn Break";
+      commentaryBadge = "Central Pawn Break";
     } else if (themeAnswer.choice === "simplification") {
-      commentaryBadge = "⚖️ Positional Simplification";
+      commentaryBadge = "Positional Simplification";
     } else if (sharpnessScore <= 0.6) {
-      commentaryBadge = "🧘 Calm Positional Maneuver";
+      commentaryBadge = "Calm Positional Maneuver";
     } else {
-      commentaryBadge = "♟️ Piece Activation";
+      commentaryBadge = "Piece Activation";
     }
 
     return {

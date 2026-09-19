@@ -4,6 +4,7 @@ import { MoveResolver } from "../src/moveResolver.js";
 import { MoveEvaluator } from "../src/moveEvaluator.js";
 import { PersonaEngine, CHESS_PERSONAS } from "../src/personaEngine.js";
 import { GameReviewer } from "../src/gameReviewer.js";
+import { ClassicMatchStudio, CLASSIC_MATCHES } from "../src/classicMatches.js";
 
 describe("ChessEngine Deterministic Rules", () => {
   it("should initialize board to standard starting position", () => {
@@ -173,5 +174,33 @@ describe("GameReviewer (Mistake Diagnostics)", () => {
     expect(diag.moveNumber).toBe(12);
     expect(diag.mistakeArchetype).toBe("king_safety_negligence");
     expect(diag.coachAdvice).toContain("king");
+  });
+});
+
+describe("ClassicMatchStudio (Historic Game Classification)", () => {
+  const matchStudio = new ClassicMatchStudio();
+
+  it("should classify The Immortal Game as a romantic swashbuckler with high brilliance", async () => {
+    const immortal = CLASSIC_MATCHES.find((m) => m.id === "immortal-game")!;
+    expect(immortal).toBeDefined();
+
+    const classification = await matchStudio.classifyMatch(immortal);
+    expect(classification.matchId).toBe("immortal-game");
+    expect(classification.archetype).toContain("SWASHBUCKLER");
+    expect(classification.aestheticBrilliance.score).toBeGreaterThan(2.0);
+    expect(classification.hasDecisiveSacrifice).toBe(true);
+    expect(classification.turningPoint.san).toBe("Ke2");
+    expect(classification.strategicBreakdown.tacticalStrikesPct).toBeGreaterThan(0);
+  });
+
+  it("should classify Kasparov's Immortal as tactical firestorm with sacrifice", async () => {
+    const kasparov = CLASSIC_MATCHES.find((m) => m.id === "kasparov-immortal")!;
+    expect(kasparov).toBeDefined();
+
+    const classification = await matchStudio.classifyMatch(kasparov);
+    expect(classification.matchId).toBe("kasparov-immortal");
+    expect(classification.archetype).toContain("FIRESTORM");
+    expect(classification.overallSharpness.score).toBeGreaterThan(2.0);
+    expect(classification.turningPoint.san).toBe("Rxd4");
   });
 });

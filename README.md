@@ -76,11 +76,12 @@ jev-chess/
 │   ├── typeSafeClient.ts    # TypeSafe SDK wrapper (live API + simulation fallback)
 │   ├── moveResolver.ts      # Natural language -> Legal move (Choice)
 │   ├── moveEvaluator.ts     # Multi-dimensional move assessment (Parallel System One)
-│   ├── personaEngine.ts     # AI Opponent styles via Composite Scoring
+│   ├── personaEngine.ts     # Multi-persona AI via composite scoring
 │   ├── gameReviewer.ts      # Blunder diagnostics & game tension tracking
+│   ├── classicMatches.ts    # Recreate historic games & System One classification
 │   └── demo.ts              # Interactive CLI showcase
 └── tests/
-    └── chess.test.ts        # Unit & integration test suite (12 tests)
+    └── chess.test.ts        # Unit & integration test suite (14 tests)
 ```
 
 ---

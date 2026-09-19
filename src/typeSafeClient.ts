@@ -39,16 +39,29 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
       if (q.type === "noul") {
         let prob = 0.5;
         const text = `${stateStr} ${JSON.stringify(q.instructions)}`.toLowerCase();
-        if (text.includes("attack") || text.includes("check") || text.includes("capture")) {
-          prob = 0.85;
-        } else if (text.includes("prophylaxis") || text.includes("defense") || text.includes("safety")) {
-          prob = 0.30;
+        const evalMove = (request.state as any)?.evaluated_move;
+        const san = evalMove?.san ?? (text.includes("san") ? text : "");
+
+        if (text.includes("king") || text.includes("attack")) {
+          if (san.includes("#")) prob = 0.99;
+          else if (san.includes("+") || evalMove?.is_check) prob = 0.91;
+          else if (san.includes("f7") || san.includes("h7") || san.includes("g7") || san.includes("f2")) prob = 0.84;
+          else if (evalMove?.is_capture || san.includes("x")) prob = 0.68;
+          else if (san.includes("o-o") || san.includes("castle")) prob = 0.05;
+          else prob = 0.28;
+        } else if (text.includes("psychological") || text.includes("pressure") || text.includes("provocative")) {
+          if (san.includes("#")) prob = 0.99;
+          else if (san.includes("+") || evalMove?.is_check) prob = 0.88;
+          else if (evalMove?.is_capture || san.includes("x")) prob = 0.81;
+          else if (san.includes("d4") || san.includes("e4") || san.includes("c4") || san.includes("f4")) prob = 0.65;
+          else if (san.includes("o-o")) prob = 0.22;
+          else prob = 0.35;
+        } else if (text.includes("decisive_sacrifice") || text.includes("sacrifice")) {
+          prob = 0.94;
         } else if (text.includes("blunder") || text.includes("risk")) {
-          prob = 0.78;
+          prob = text.includes("??") ? 0.92 : 0.24;
         } else if (text.includes("material")) {
-          prob = text.includes("capture") ? 0.90 : 0.25;
-        } else {
-          prob = 0.45;
+          prob = evalMove?.is_capture || san.includes("x") ? 0.88 : 0.22;
         }
         answers[id] = {
           type: "noul",
@@ -64,6 +77,12 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
           typeof request.state === "object" && request.state !== null && "user_intent" in request.state
             ? String((request.state as any).user_intent).toLowerCase()
             : stateStr.toLowerCase();
+
+        const evalMove = (request.state as any)?.evaluated_move;
+        const san = evalMove?.san ?? "";
+        const isCapture = evalMove?.is_capture ?? san.includes("x");
+        const isCheck = evalMove?.is_check ?? san.includes("+");
+        const isCastling = evalMove?.is_castling ?? (san.includes("O-O") || san.includes("o-o"));
 
         let bestScore = 0;
 
@@ -88,11 +107,28 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
           if (userIntent.includes("center") && (kLower === "d4" || kLower === "e4" || kLower === "nf3" || kLower === "nc3")) s += 6;
           if (userIntent.includes("attack") && (desc.includes("captures") || kLower === "nf3")) s += 5;
 
-          // Strategic theme matching
-          if (userIntent.includes("strategic") || stateStr.includes("strategic_theme")) {
-            if (stateStr.includes("o-o") && kLower === "prophylaxis") s += 30;
-            if (stateStr.includes("c3") && kLower === "pawn_break") s += 30;
-            if (stateStr.includes("bxf7+") && kLower === "tactical_strike") s += 35;
+          // Strategic theme matching for any move
+          if (stateStr.includes("strategic_theme") || desc.includes("pawn") || desc.includes("develop")) {
+            if (isCastling && kLower === "prophylaxis") s += 40;
+            else if (isCheck && (kLower === "tactical_strike" || kLower === "king_hunt")) s += 38;
+            else if (isCapture && (kLower === "tactical_strike" || kLower === "simplification")) s += 36;
+            else if (san.startsWith("d") || san.startsWith("e") || san.startsWith("c") || san.startsWith("f")) {
+              if (kLower === "pawn_break") s += 35;
+            } else if (san.startsWith("N") || san.startsWith("B") || san.startsWith("R") || san.startsWith("Q")) {
+              if (kLower === "piece_activation") s += 35;
+            } else if (kLower === "prophylaxis") {
+              s += 20;
+            }
+          }
+
+          // Historical match archetype classification
+          if (stateStr.includes("match_meta") || stateStr.includes("immortal") || stateStr.includes("century")) {
+            if ((stateStr.includes("immortal-game") || stateStr.includes("anderssen")) && kLower === "romantic_swashbuckler") s += 60;
+            else if ((stateStr.includes("opera") || stateStr.includes("morphy")) && kLower === "dynamic_initiative") s += 60;
+            else if ((stateStr.includes("century") || stateStr.includes("fischer")) && kLower === "dynamic_initiative") s += 60;
+            else if (stateStr.includes("kasparov") && kLower === "tactical_firestorm") s += 60;
+            else if (stateStr.includes("tal") && kLower === "tactical_firestorm") s += 60;
+            else if (kLower === "romantic_swashbuckler" || kLower === "tactical_firestorm") s += 20;
           }
 
           // Mistake archetype diagnostics
@@ -113,7 +149,7 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
         }
 
         const isNone = selected === "none";
-        const baseConf = isNone ? 0.25 : 0.89;
+        const baseConf = isNone ? 0.25 : 0.91;
 
         for (const k of keys) {
           const weight = k === selected ? baseConf : (1 - baseConf) / Math.max(1, keys.length - 1);
@@ -133,29 +169,43 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
 
         // Target score based on evaluated move
         let targetScore = 1.0;
-        const isBxf7 = text.includes("bxf7+");
-        const isNxe5 = text.includes("nxe5");
-        const isCastling = text.includes("o-o") || text.includes("castle");
-        const isC3 = text.includes("\"san\":\"c3\"") || text.includes("'c3'") || text.includes("c3");
+        const evalMove = (request.state as any)?.evaluated_move;
+        const san = (evalMove?.san ?? (text.includes("san") ? text : "")).toLowerCase();
+        const isCapture = evalMove?.is_capture ?? san.includes("x");
+        const isCheck = evalMove?.is_check ?? san.includes("+");
+        const isCastling = evalMove?.is_castling ?? (san.includes("o-o") || san.includes("castle"));
 
-        if (text.includes("aggress") || text.includes("sharp")) {
-          if (isBxf7) targetScore = 2.9;
-          else if (isNxe5) targetScore = 2.4;
-          else if (isC3) targetScore = 1.1;
-          else if (isCastling) targetScore = 0.4;
-          else targetScore = 1.2;
+        if (text.includes("brilliance")) {
+          targetScore = 2.9; // Classic immortal matches are top-tier brilliance
+        } else if (text.includes("overall sharpness") || text.includes("volatility")) {
+          targetScore = 2.8;
+        } else if (text.includes("aggress") || text.includes("sharp")) {
+          if (san.includes("#") || san.includes("bxf7") || san.includes("rxd4") || san.includes("be6")) {
+            targetScore = 2.9;
+          } else if (isCheck) {
+            targetScore = 2.6;
+          } else if (isCapture) {
+            targetScore = 2.2;
+          } else if (san.startsWith("d4") || san.startsWith("e4") || san.startsWith("c4") || san.startsWith("f4")) {
+            targetScore = 1.7;
+          } else if (isCastling) {
+            targetScore = 0.4;
+          } else if (san.startsWith("n") || san.startsWith("b")) {
+            targetScore = 0.9;
+          } else {
+            targetScore = 0.6;
+          }
         } else if (text.includes("prophyl")) {
           if (isCastling) targetScore = 2.9;
-          else if (isC3) targetScore = 2.2;
-          else if (isBxf7) targetScore = 0.2;
-          else if (isNxe5) targetScore = 0.6;
+          else if (san.startsWith("a3") || san.startsWith("h3") || san.startsWith("c3") || san.startsWith("d3")) targetScore = 2.3;
+          else if (isCheck || isCapture) targetScore = 0.4;
           else targetScore = 1.2;
         } else if (text.includes("complex") || text.includes("tension")) {
-          if (isBxf7 || text.includes("??")) targetScore = 2.9;
-          else if (isNxe5) targetScore = 2.1;
+          if (san.includes("#") || san.includes("bxf7") || san.includes("??")) targetScore = 2.9;
+          else if (isCheck || isCapture) targetScore = 2.2;
           else if (isCastling) targetScore = 0.5;
-          else if (isC3) targetScore = 1.3;
-          else targetScore = 1.2;
+          else if (san.startsWith("d") || san.startsWith("e")) targetScore = 1.5;
+          else targetScore = 1.0;
         } else if (text.includes("difficult")) {
           targetScore = text.includes("??") ? 2.8 : 0.6;
         } else {
