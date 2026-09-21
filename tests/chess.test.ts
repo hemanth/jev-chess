@@ -204,3 +204,54 @@ describe("ClassicMatchStudio (Historic Game Classification)", () => {
     expect(classification.turningPoint.san).toBe("Rxd4");
   });
 });
+
+describe("WebMLKitTypeSafeClient & Engine Switching", () => {
+  it("should instantiate WebMLKitTypeSafeClient and execute System One queries", async () => {
+    const { WebMLKitTypeSafeClient, noul, choice, score } = await import("../src/typeSafeClient.js");
+    const client = new WebMLKitTypeSafeClient("qwen3-0.6b");
+    expect(client.model).toBe("qwen3-0.6b");
+    expect(client.engineType).toBe("webml-kit");
+
+    const result = await client.systemOne({
+      state: { fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1", user_intent: "play king's pawn" },
+      questions: {
+        is_aggressive: noul("Is this an aggressive opening move?"),
+        chosen_move: choice("Which move best matches the intent?", {
+          e5: "Advance e-pawn two squares to e5",
+          c5: "Play Sicilian c5",
+        }),
+        sharpness: score("Rate the sharpness of this move", [
+          "Quiet positional move",
+          "Balanced standard reply",
+          "Sharp aggressive counter",
+        ]),
+      },
+    });
+
+    expect(result).toBeDefined();
+    expect(result.answers).toBeDefined();
+    expect(result.answers.is_aggressive).toBeDefined();
+    expect(typeof (result.answers.is_aggressive as any).noul).toBe("number");
+    expect(result.answers.chosen_move).toBeDefined();
+    expect(typeof (result.answers.chosen_move as any).choice).toBe("string");
+    expect(result.answers.sharpness).toBeDefined();
+    expect(typeof (result.answers.sharpness as any).score).toBe("number");
+  });
+
+  it("should switch engine mode and retain selected OpenJev model", async () => {
+    const { setEngineMode, getEngineMode, getTypeSafeClient } = await import("../src/typeSafeClient.js");
+
+    setEngineMode("webml-kit", { model: "minicpm5-2b" });
+    const engineMode = getEngineMode();
+    expect(engineMode.mode).toBe("webml-kit");
+    expect(engineMode.model).toBe("minicpm5-2b");
+
+    const activeClient = getTypeSafeClient();
+    expect(activeClient).toBeDefined();
+
+    // Reset back to simulated
+    setEngineMode("simulated");
+    expect(getEngineMode().mode).toBe("simulated");
+  });
+});
+

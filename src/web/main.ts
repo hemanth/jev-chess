@@ -3,7 +3,7 @@ import { MoveResolver } from "../moveResolver.js";
 import { MoveEvaluator } from "../moveEvaluator.js";
 import { PersonaEngine } from "../personaEngine.js";
 import { ClassicMatchStudio, CLASSIC_MATCHES, type ClassicMatch } from "../classicMatches.js";
-import { setApiKey, getApiKeyStatus } from "../typeSafeClient.js";
+import { setApiKey, getApiKeyStatus, setEngineMode, getEngineMode, type EngineMode } from "../typeSafeClient.js";
 import type { AnnotatedMove, MoveEvaluation, PersonaId } from "../types.js";
 
 const PIECE_UNICODE: Record<string, string> = {
@@ -511,25 +511,78 @@ async function classifyCurrentMatch() {
   }
 }
 
-/* API Key Configuration */
+/* Decision Engine & API Key Configuration */
 function checkKeyStatus() {
-  const status = getApiKeyStatus();
+  const engineInfo = getEngineMode();
+  const apiKeyStatus = getApiKeyStatus();
   const badge = document.getElementById("backendBadge");
   const dot = document.getElementById("backendStatusDot");
   const text = document.getElementById("backendStatusText");
   const btnLabel = document.getElementById("keyBtnLabel");
+  const engineSelect = document.getElementById("headerEngineSelect") as HTMLSelectElement | null;
+  const modelContainer = document.getElementById("headerModelContainer");
+  const modelSelect = document.getElementById("headerModelSelect") as HTMLSelectElement | null;
 
-  if (status.isLive) {
+  if (engineSelect) {
+    engineSelect.value = engineInfo.mode;
+  }
+  if (modelSelect && engineInfo.model) {
+    modelSelect.value = engineInfo.model;
+  }
+  if (modelContainer) {
+    modelContainer.style.display = engineInfo.mode === "webml-kit" ? "inline-flex" : "none";
+  }
+
+  if (engineInfo.mode === "webml-kit") {
+    if (badge) badge.className = "badge-status badge-webml";
+    if (dot) dot.className = "status-dot webml";
+    if (text) text.innerText = `webml-kit WebGPU (${engineInfo.model || "qwen3-0.6b"})`;
+    if (btnLabel) btnLabel.innerText = "webml-kit";
+  } else if (engineInfo.mode === "cloud-api" || apiKeyStatus.isLive) {
     if (badge) badge.className = "badge-status";
     if (dot) dot.className = "status-dot live";
     if (text) text.innerText = "Live API (jev-latest)";
-    if (btnLabel) btnLabel.innerText = status.maskedKey || "Live Key";
+    if (btnLabel) btnLabel.innerText = apiKeyStatus.maskedKey || "Live Key";
   } else {
     if (badge) badge.className = "badge-status badge-sim";
     if (dot) dot.className = "status-dot sim";
-    if (text) text.innerText = "Simulation Mode (jev-latest calibrated)";
-    if (btnLabel) btnLabel.innerText = "API Key";
+    if (text) text.innerText = "Simulation Mode (calibrated)";
+    if (btnLabel) btnLabel.innerText = "Simulated";
   }
+}
+
+function onEngineModeSelectChange(e: Event) {
+  const select = e.target as HTMLSelectElement;
+  const mode = select.value as EngineMode;
+  const modelSelect = document.getElementById("headerModelSelect") as HTMLSelectElement | null;
+  const model = modelSelect ? modelSelect.value : "qwen3-0.6b";
+  setEngineMode(mode, { model });
+  checkKeyStatus();
+}
+
+function onModelSelectChange(e: Event) {
+  const select = e.target as HTMLSelectElement;
+  const model = select.value;
+  setEngineMode("webml-kit", { model });
+  checkKeyStatus();
+}
+
+function selectEngineModeModal(mode: EngineMode) {
+  const modelSelect = document.getElementById("headerModelSelect") as HTMLSelectElement | null;
+  const model = modelSelect ? modelSelect.value : "qwen3-0.6b";
+  setEngineMode(mode, { model });
+  const statusEl = document.getElementById("modalStatus");
+  if (statusEl) {
+    if (mode === "webml-kit") {
+      statusEl.innerHTML = `<span style="color: #d2a8ff;">Switched to webml-kit WebGPU on-device evaluation (${model}).</span>`;
+    } else if (mode === "cloud-api") {
+      statusEl.innerHTML = '<span style="color: var(--success)">Switched to live Cloud API.</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color: var(--warning)">Switched back to simulation mode.</span>';
+    }
+  }
+  checkKeyStatus();
+  setTimeout(closeKeyModal, 800);
 }
 
 function openKeyModal() {
@@ -563,6 +616,7 @@ function saveApiKey() {
     return;
   }
   setApiKey(key);
+  setEngineMode("cloud-api", { apiKey: key });
   if (statusEl) {
     statusEl.innerHTML = '<span style="color: var(--success)">Successfully connected to live jev-latest model.</span>';
   }
@@ -573,6 +627,7 @@ function saveApiKey() {
 
 function clearApiKey() {
   setApiKey(null);
+  setEngineMode("simulated");
   const statusEl = document.getElementById("modalStatus");
   if (statusEl) {
     statusEl.innerHTML = '<span style="color: var(--warning)">Switched back to calibrated simulation mode.</span>';
@@ -605,6 +660,9 @@ w.closeKeyModal = closeKeyModal;
 w.toggleKeyVisibility = toggleKeyVisibility;
 w.saveApiKey = saveApiKey;
 w.clearApiKey = clearApiKey;
+w.onEngineModeSelectChange = onEngineModeSelectChange;
+w.onModelSelectChange = onModelSelectChange;
+w.selectEngineModeModal = selectEngineModeModal;
 
 // DOM Ready
 window.addEventListener("DOMContentLoaded", () => {

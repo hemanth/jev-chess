@@ -94,6 +94,15 @@
       color: var(--warning);
       border-color: rgba(210, 153, 34, 0.3);
     }
+    .status-dot.webml {
+      background: #a371f7;
+      box-shadow: 0 0 8px rgba(163, 113, 247, 0.7);
+    }
+    .badge-webml {
+      background: rgba(163, 113, 247, 0.15);
+      color: #d2a8ff;
+      border-color: rgba(163, 113, 247, 0.35);
+    }
     main {
       flex: 1;
       max-width: 1400px;
@@ -524,13 +533,28 @@
         <div style="font-size: 0.75rem; color: #8b949e;">TypeSafe AI System One Architecture</div>
       </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div style="display: inline-flex; align-items: center; gap: 6px; background: #21262d; border: 1px solid var(--card-border); padding: 3px 8px; border-radius: 8px;">
+        <span style="font-size: 0.75rem; color: #8b949e; font-weight: 600;">Engine:</span>
+        <select id="headerEngineSelect" onchange="onEngineModeSelectChange(event)" style="background: #0d1117; color: #f0f6fc; border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.78rem; padding: 3px 6px; cursor: pointer; outline: none;">
+          <option value="simulated">Simulated (Offline)</option>
+          <option value="webml-kit">webml-kit (WebGPU)</option>
+          <option value="cloud-api">Live TypeSafe API</option>
+        </select>
+        <div id="headerModelContainer" style="display: none; align-items: center; gap: 4px;">
+          <select id="headerModelSelect" onchange="onModelSelectChange(event)" style="background: #0d1117; color: #d2a8ff; border: 1px solid rgba(163,113,247,0.4); border-radius: 6px; font-size: 0.78rem; padding: 3px 6px; cursor: pointer; outline: none;">
+            <option value="qwen3-0.6b">qwen3-0.6b (Fast)</option>
+            <option value="minicpm5-2b">minicpm5-2b (Desktop)</option>
+          </select>
+        </div>
+      </div>
+
       <button class="btn" onclick="openKeyModal()" style="padding: 5px 12px; font-size: 0.8rem; background: #21262d; border: 1px solid var(--card-border);">
         <span id="keyBtnLabel">API Key</span>
       </button>
-      <div id="backendBadge" class="badge-status badge-sim" onclick="openKeyModal()" title="Click to manage TypeSafe API Key">
+      <div id="backendBadge" class="badge-status badge-sim" onclick="openKeyModal()" title="Click to manage TypeSafe Engine & API Key">
         <span id="backendStatusDot" class="status-dot sim"></span>
-        <span id="backendStatusText">Simulation Mode (jev-latest calibrated)</span>
+        <span id="backendStatusText">Simulation Mode (calibrated)</span>
       </div>
     </div>
   </header>
@@ -540,18 +564,18 @@
     <div style="background: #161b22; border: 1px solid #30363d; border-radius: 12px; width: 480px; max-width: 92vw; padding: 24px; box-shadow: 0 20px 48px rgba(0,0,0,0.7);">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h3 style="color: #f0f6fc; font-size: 1.15rem; font-weight: 700;">
-          TypeSafe API Configuration
+          Decision Engine &amp; API Configuration
         </h3>
         <button onclick="closeKeyModal()" style="background: none; border: none; color: #8b949e; font-size: 1.2rem; cursor: pointer; padding: 4px;">✕</button>
       </div>
 
       <p style="font-size: 0.85rem; color: #8b949e; margin-bottom: 16px; line-height: 1.45;">
-        Connect directly to TypeSafe's flagship System One model (<strong style="color: #f0f6fc;">jev-latest</strong>). When active, all natural language move parsing, evaluations, and AI personas run directly against TypeSafe's live inference endpoints.
+        Choose between <strong style="color: #f0f6fc;">Simulated</strong> (fast offline heuristics), <strong style="color: #d2a8ff;">webml-kit</strong> (in-browser on-device WebGPU OpenJev models), or <strong style="color: #58a6ff;">TypeSafe Cloud API</strong> (<strong style="color: #f0f6fc;">jev-latest</strong>).
       </p>
 
       <div style="margin-bottom: 14px;">
         <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #c9d1d9; margin-bottom: 6px;">
-          TypeSafe API Key
+          TypeSafe API Key (For Live Cloud API)
         </label>
         <div style="display: flex; gap: 6px;">
           <input id="keyInput" type="password" placeholder="ts_..." style="flex: 1; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; color: #f0f6fc; font-family: ui-monospace, monospace; font-size: 0.9rem; outline: none;" onkeydown="if(event.key==='Enter') saveApiKey()" />
@@ -563,7 +587,10 @@
 
       <div style="display: flex; gap: 8px; flex-direction: column;">
         <button class="btn btn-accent" onclick="saveApiKey()" style="padding: 10px; font-weight: 700;">
-          Connect to Live API (jev-latest)
+          Connect to Live Cloud API (jev-latest)
+        </button>
+        <button class="btn" onclick="selectEngineModeModal('webml-kit')" style="padding: 10px; font-weight: 600; background: rgba(163, 113, 247, 0.15); border: 1px solid rgba(163, 113, 247, 0.4); color: #d2a8ff;">
+          Switch to webml-kit (In-Browser WebGPU / OpenJev)
         </button>
         <div style="display: flex; gap: 8px;">
           <button class="btn" onclick="clearApiKey()" style="flex: 1;">
@@ -785,6 +812,6 @@
     </div>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

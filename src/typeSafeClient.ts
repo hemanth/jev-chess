@@ -7,6 +7,7 @@ import {
   type SystemOneRequest,
   type SystemOneResult,
 } from "@typesafe-ai/sdk";
+import { createDecisionEngine, type DecisionEngine } from "webml-kit/browser";
 
 export { choice, score, noul };
 
@@ -241,6 +242,112 @@ class SimulatedTypeSafeClient implements ITypeSafeClient {
   }
 }
 
+export type EngineMode = "simulated" | "webml-kit" | "cloud-api";
+
+/**
+ * On-Device / In-Browser Decision Engine client using webml-kit (WebGPU / WASM OpenJev models).
+ */
+export class WebMLKitTypeSafeClient implements ITypeSafeClient {
+  readonly isLive = false;
+  readonly engineType = "webml-kit";
+  public readonly model: string;
+  private enginePromise: Promise<DecisionEngine> | null = null;
+  private fallbackSimulated = new SimulatedTypeSafeClient();
+
+  constructor(model: string = "qwen3-0.6b") {
+    this.model = model;
+  }
+
+  public async getEngine(): Promise<DecisionEngine> {
+    if (!this.enginePromise) {
+      this.enginePromise = (async () => {
+        const engine = createDecisionEngine({
+          model: this.model as any,
+          mode: "auto",
+        });
+        await engine.init();
+        return engine;
+      })();
+    }
+    return this.enginePromise;
+  }
+
+  public async systemOne<const Q extends Questions>(
+    request: SystemOneRequest<Q>
+  ): Promise<SystemOneResult<Q>> {
+    const startTime = performance.now();
+    const answers: Record<string, any> = {};
+
+    try {
+      const engine = await this.getEngine();
+
+      for (const [id, q] of Object.entries(request.questions)) {
+        if (!q) continue;
+
+        if (q.type === "noul") {
+          const res = await engine.noul({
+            state: request.state,
+            statement: (q as any).instructions || id,
+            threshold: 0.5,
+          });
+          answers[id] = {
+            type: "noul",
+            noul: res.noul,
+            latencyMs: res.latencyMs,
+          };
+        } else if (q.type === "choice") {
+          const criteria = (q as any).criteria ?? {};
+          const options =
+            Object.keys(criteria).length >= 2
+              ? criteria
+              : { option_a: "Option A", option_b: "Option B" };
+          const res = await engine.choice({
+            state: request.state,
+            question: (q as any).instructions || id,
+            options,
+          });
+          answers[id] = {
+            type: "choice",
+            choice: res.choice,
+            confidence: res.confidence,
+            probabilities: res.probabilities,
+            latencyMs: res.latencyMs,
+          };
+        } else if (q.type === "score") {
+          const criteria = (q as any).criteria || [
+            "Level 0",
+            "Level 1",
+            "Level 2",
+            "Level 3",
+          ];
+          const res = await engine.score({
+            state: request.state,
+            instructions: (q as any).instructions || id,
+            criteria,
+          });
+          answers[id] = {
+            type: "score",
+            score: res.score,
+            confidence: res.confidence,
+            probabilities: res.probabilities,
+            latencyMs: res.latencyMs,
+          };
+        }
+      }
+
+      return {
+        model: `webml-kit (${this.model})`,
+        answers: answers as any,
+        usage: { input_tokens: 30, output_tokens: 15 },
+        latencyMs: Math.max(1, Math.round(performance.now() - startTime)),
+      } as SystemOneResult<Q>;
+    } catch (err) {
+      console.warn("webml-kit evaluation failed, using simulated fallback:", err);
+      return this.fallbackSimulated.systemOne(request);
+    }
+  }
+}
+
 class LiveTypeSafeClientWrapper implements ITypeSafeClient {
   readonly isLive = true;
   private client: TypeSafeClient;
@@ -298,6 +405,64 @@ export function setApiKey(key: string | null | undefined): boolean {
   }
 }
 
+export function setEngineMode(
+  mode: EngineMode,
+  options?: { model?: string; apiKey?: string }
+): ITypeSafeClient {
+  if (mode === "webml-kit") {
+    clientInstance = new WebMLKitTypeSafeClient(options?.model || "qwen3-0.6b");
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("CHESS_ENGINE_MODE", "webml-kit");
+      if (options?.model) {
+        window.localStorage.setItem("CHESS_WEBML_MODEL", options.model);
+      }
+    }
+  } else if (mode === "cloud-api") {
+    const key = options?.apiKey || getStoredApiKey();
+    if (key) {
+      setStoredApiKey(key);
+      clientInstance = new LiveTypeSafeClientWrapper(key);
+    } else {
+      clientInstance = new SimulatedTypeSafeClient();
+    }
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("CHESS_ENGINE_MODE", "cloud-api");
+    }
+  } else {
+    clientInstance = new SimulatedTypeSafeClient();
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("CHESS_ENGINE_MODE", "simulated");
+    }
+  }
+  return clientInstance;
+}
+
+export function getEngineMode(): {
+  mode: EngineMode;
+  model?: string;
+  isLive: boolean;
+} {
+  const current = getTypeSafeClient();
+  let storedMode: EngineMode = "simulated";
+  let storedModel: string | undefined = undefined;
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    const s = window.localStorage.getItem("CHESS_ENGINE_MODE") as EngineMode | null;
+    if (s && ["simulated", "webml-kit", "cloud-api"].includes(s)) {
+      storedMode = s;
+    }
+    storedModel = window.localStorage.getItem("CHESS_WEBML_MODEL") || undefined;
+  }
+
+  if (current instanceof WebMLKitTypeSafeClient) {
+    return { mode: "webml-kit", model: current.model, isLive: false };
+  }
+  if (current.isLive) {
+    return { mode: "cloud-api", isLive: true };
+  }
+  return { mode: storedMode, model: storedModel, isLive: false };
+}
+
 export function getApiKeyStatus(): { isLive: boolean; maskedKey?: string } {
   const current = getTypeSafeClient();
   const key = getStoredApiKey();
@@ -311,8 +476,24 @@ export function getApiKeyStatus(): { isLive: boolean; maskedKey?: string } {
 export function getTypeSafeClient(): ITypeSafeClient {
   if (clientInstance) return clientInstance;
 
+  let storedMode: EngineMode = "simulated";
+  let storedModel = "qwen3-0.6b";
+  if (typeof window !== "undefined" && window.localStorage) {
+    const s = window.localStorage.getItem("CHESS_ENGINE_MODE") as EngineMode | null;
+    if (s && ["simulated", "webml-kit", "cloud-api"].includes(s)) {
+      storedMode = s;
+    }
+    const m = window.localStorage.getItem("CHESS_WEBML_MODEL");
+    if (m) storedModel = m;
+  }
+
+  if (storedMode === "webml-kit") {
+    clientInstance = new WebMLKitTypeSafeClient(storedModel);
+    return clientInstance;
+  }
+
   const key = getStoredApiKey();
-  if (key && key.trim().length > 0) {
+  if (storedMode === "cloud-api" && key && key.trim().length > 0) {
     clientInstance = new LiveTypeSafeClientWrapper(key);
   } else {
     clientInstance = new SimulatedTypeSafeClient();

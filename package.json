@@ -1,12 +1,12 @@
 {
   "name": "jev-chess",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Designing Chess Moves and Games with TypeSafe AI (System One / Jev)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "build:web": "esbuild src/web/main.ts --bundle --minify --format=iife --outfile=public/app.js",
+    "build:web": "esbuild src/web/main.ts --bundle --minify --format=esm --external:'node:*' --outfile=public/app.js",
     "test": "vitest run",
     "demo": "tsx src/demo.ts",
     "serve": "tsx src/server.ts",
@@ -24,7 +24,8 @@
   "license": "MIT",
   "dependencies": {
     "@typesafe-ai/sdk": "^0.6.0",
-    "chess.js": "^1.4.0"
+    "chess.js": "^1.4.0",
+    "webml-kit": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
