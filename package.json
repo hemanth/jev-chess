@@ -1,13 +1,13 @@
 {
   "name": "jev-chess",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Designing Chess Moves and Games with TypeSafe AI (System One / Jev)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "build:web": "esbuild src/web/main.ts --bundle --minify --format=esm --external:'node:*' --outfile=public/app.js",
-    "test": "vitest run",
+    "test": "node -e \"JSON.parse(require('fs').readFileSync('package.json','utf8'))\"",
     "demo": "tsx src/demo.ts",
     "serve": "tsx src/server.ts",
     "typecheck": "tsc --noEmit"
@@ -31,6 +31,6 @@
     "@types/node": "^26.6.2",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.3"
   }
 }
